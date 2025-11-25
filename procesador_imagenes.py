@@ -11,38 +11,24 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
                              size: tuple, dpi: tuple, remove_bg: bool) -> list[dict]:
     """
     Procesa una imagen usando parámetros definidos por el usuario.
+    APLICA SOLO REDIMENSIÓN al tamaño 'size'.
     Si remove_bg es False, solo genera el archivo JPG.
     Retorna una lista de diccionarios con los datos de cada imagen procesada.
     """
     results = []
     
-    # Prefijos para los nombres de archivo
-    #PREFIX_PNG = "SIN_FONDO_"
-    #PREFIX_JPG = "CON_FONDO_ORIGINAL_"
-    
     try:
         # 1. Abrir la imagen
         img_original = Image.open(io.BytesIO(image_data))
         
-        # --- Aplicar Recorte ---
-        width, height = img_original.size
-        target_width, target_height = size
-        
-        # Recorte central
-        if width >= target_width and height >= target_height:
-            left = (width - target_width) / 2
-            top = (height - target_height) / 2
-            right = (width + target_width) / 2
-            bottom = (height + target_height) / 2
-            
-            img_cropped = img_original.crop((left, top, right, bottom))
-        else:
-            # Redimensionar si es más pequeña
-            img_cropped = img_original.resize(size, Image.Resampling.LANCZOS)
+        # --- Aplicar Redimensión (resize) ---
+        # El cambio solicitado es reemplazar la lógica de 'crop' por un simple 'resize'.
+        # Se usa LANCZOS para obtener la mejor calidad de redimensión.
+        img_processed = img_original.resize(size, Image.Resampling.LANCZOS)
             
         # Versiones para manejar formatos (RGBA para PNG, RGB para JPG)
-        img_for_png = img_cropped.convert('RGBA')
-        img_for_jpg = img_cropped.convert('RGB') 
+        img_for_png = img_processed.convert('RGBA')
+        img_for_jpg = img_processed.convert('RGB') 
         
         name, _ = os.path.splitext(original_filename)
 
@@ -51,6 +37,7 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
         # ------------------------------------------------------------------
         
         if remove_bg:
+            # Eliminar el fondo (solo aplica a la versión RGBA)
             img_final_png = remove(img_for_png)
             
             buffer_png = io.BytesIO()
@@ -70,7 +57,7 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
         # ------------------------------------------------------------------
         
         buffer_jpg = io.BytesIO()
-        # Se guarda la versión RGB recortada sin modificar el fondo.
+        # Se guarda la versión RGB redimensionada.
         img_for_jpg.save(buffer_jpg, format='JPEG', dpi=dpi)
         buffer_jpg.seek(0)
 
@@ -94,9 +81,9 @@ def clear_results():
         st.session_state.processed_results = []
 
 def main():
-    st.set_page_config(page_title="Recortador de Imágenes Web Avanzado", layout="centered")
-    st.title("✂️ Procesador de Imágenes por Lotes (Web)")
-    st.markdown("Configura los parámetros para recortar y eliminar el fondo de tus imágenes.")
+    st.set_page_config(page_title="Redimensionador de Imágenes Web Avanzado", layout="centered")
+    st.title("✂️ Procesador de Imágenes")
+    st.markdown("Configura los parámetros para **redimensionar** y/o eliminar el fondo de tus imágenes.")
     
     
     # ------------------------------------------------------------------
@@ -117,7 +104,7 @@ def main():
         input_dpi = st.number_input("DPI (Puntos por Pulgada)", min_value=72, max_value=600, value=150, step=10)
         
         # Parámetro de Eliminación de Fondo
-        st.subheader("Eliminación de Fondo (PNG)")
+        st.subheader("Eliminación de Fondo")
         # La clave está aquí: si es True, se genera PNG sin fondo. Si es False, solo se genera JPG.
         remove_bg_enabled = st.checkbox("Remover fondo", value=True)
         
@@ -144,7 +131,7 @@ def main():
     
     if uploaded_files:
         
-        if st.button("🚀 Iniciar "):
+        if st.button("🚀 Iniciar"):
             st.session_state.processed_results = [] # Limpiar justo antes de procesar
             
             progress_bar = st.progress(0)
@@ -190,7 +177,7 @@ def main():
 
         # --- Opción 1: DESCARGA EN LOTE (ZIP) ---
         with col_zip:
-            st.markdown("**Opción A: Descarga ZIP Completo**")
+            st.markdown("**Opción A: Descarga Completa**")
             zip_buffer = io.BytesIO()
             
             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zf:
@@ -200,7 +187,7 @@ def main():
             zip_buffer.seek(0)
             
             st.download_button(
-                label="⬇️ Descargar ZIP con Todas",
+                label="⬇️ Descarga Completa ZIP",
                 data=zip_buffer.read(),
                 file_name="imagenes_procesadas_lote.zip",
                 mime="application/zip",
