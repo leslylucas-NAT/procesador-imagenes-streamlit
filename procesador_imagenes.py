@@ -1,5 +1,5 @@
 import streamlit as st
-from PIL import Image, ImageOps  # Importamos ImageOps
+from PIL import Image, ImageOps
 import os
 import io
 import zipfile
@@ -10,45 +10,61 @@ from rembg import remove, new_session
 def get_rembg_session():
     return new_session("u2netp")
 
-# --- LÓGICA DE PROCESAMIENTO ---
-
 def procesar_imagen_completo(image_data: bytes, original_filename: str, 
                              target_size: tuple, dpi: tuple, remove_bg: bool) -> list[dict]:
     results = []
     
     try:
+        # 1. Abrir imagen original
         img_original = Image.open(io.BytesIO(image_data))
         
-        # --- REDIMENSIÓN SIN DEFORMAR (Proporcional) ---
-        # ImageOps.contain ajusta la imagen al máximo posible dentro de target_size
-        # sin estirarla, respetando las proporciones del producto.
-        img_processed = ImageOps.contain(img_original, target_size, Image.Resampling.LANCZOS)
-            
-        img_for_png = img_processed.convert('RGBA')
-        img_for_jpg = img_processed.convert('RGB') 
+        # 2. Redimensionar proporcionalmente para que quepa en el cuadro
+        # Esto evita la deformación
+        img_original.thumbnail(target_size, Image.Resampling.LANCZOS)
         
-        name, _ = os.path.splitext(original_filename)
-
-        # --- GENERACIÓN PNG (QUITAR FONDO) ---
+        # 3. Crear un "lienzo" nuevo del tamaño EXACTO pedido (ej. 500x500)
+        # Para PNG usamos RGBA (transparente), para JPG usamos RGB (blanco)
+        
+        # --- PROCESO PARA PNG (CON FONDO TRANSPARENTE) ---
         if remove_bg:
             session = get_rembg_session()
-            img_final_png = remove(img_for_png, session=session)
+            # Quitamos el fondo primero
+            img_no_bg = remove(img_original, session=session)
+            
+            # Creamos el lienzo transparente exacto
+            final_png = Image.new("RGBA", target_size, (0, 0, 0, 0))
+            
+            # Centramos el producto en el lienzo
+            x = (target_size[0] - img_no_bg.size[0]) // 2
+            y = (target_size[1] - img_no_bg.size[1]) // 2
+            final_png.paste(img_no_bg, (x, y), img_no_bg)
             
             buffer_png = io.BytesIO()
-            img_final_png.save(buffer_png, format='PNG', dpi=dpi)
+            final_png.save(buffer_png, format='PNG', dpi=dpi)
             buffer_png.seek(0)
             
+            name, _ = os.path.splitext(original_filename)
             results.append({
                 "name": f"{name}.png",
                 "data": buffer_png.read(),
                 "mime": "image/png"
             })
 
-        # --- GENERACIÓN JPG ---
+        # --- PROCESO PARA JPG (CON FONDO BLANCO) ---
+        # Creamos el lienzo blanco exacto
+        final_jpg = Image.new("RGB", target_size, (255, 255, 255))
+        
+        # Centramos el producto original (con su fondo)
+        img_rgb = img_original.convert("RGB")
+        x = (target_size[0] - img_rgb.size[0]) // 2
+        y = (target_size[1] - img_rgb.size[1]) // 2
+        final_jpg.paste(img_rgb, (x, y))
+        
         buffer_jpg = io.BytesIO()
-        img_for_jpg.save(buffer_jpg, format='JPEG', dpi=dpi)
+        final_jpg.save(buffer_jpg, format='JPEG', dpi=dpi)
         buffer_jpg.seek(0)
 
+        name, _ = os.path.splitext(original_filename)
         results.append({
             "name": f"{name}.jpg",
             "data": buffer_jpg.read(),
@@ -60,37 +76,39 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
     
     return results
 
-# --- INTERFAZ (Se mantienen tus funciones de UI) ---
+# --- INTERFAZ (Sin cambios mayores, solo mantenemos la estructura) ---
 def main():
-    st.set_page_config(page_title="Procesador Proporcional", layout="centered")
-    st.title("✂️ Procesador sin Deformación")
-    st.info("Las imágenes se ajustarán al tamaño máximo elegido sin estirarse.")
+    st.set_page_config(page_title="Procesador Tamaño Exacto", layout="centered")
+    st.title("📏 Tamaño Exacto sin Deformar")
+    st.write("Tus imágenes serán exactamente del tamaño que pidas, centrando el producto.")
 
     with st.sidebar:
-        st.header("⚙️ Ajustes")
-        input_width = st.number_input("Ancho Máximo", value=1000)
-        input_height = st.number_input("Alto Máximo", value=1000)
+        st.header("⚙️ Configuración")
+        input_width = st.number_input("Ancho Exacto (px)", value=500)
+        input_height = st.number_input("Alto Exacto (px)", value=500)
         input_dpi = st.number_input("DPI", value=150)
-        remove_bg_enabled = st.checkbox("Remover fondo (Lite)", value=True)
+        remove_bg_enabled = st.checkbox("Remover fondo", value=True)
 
-    uploaded_files = st.file_uploader("Subir imágenes", type=["jpg", "png"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Subir imágenes", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
-    if uploaded_files and st.button("🚀 Iniciar"):
+    if 'processed_results' not in st.session_state:
+        st.session_state.processed_results = []
+
+    if uploaded_files and st.button("🚀 Procesar"):
         st.session_state.processed_results = []
         target_size = (input_width, input_height)
         
         for file in uploaded_files:
             res = procesar_imagen_completo(file.read(), file.name, target_size, (input_dpi, input_dpi), remove_bg_enabled)
             st.session_state.processed_results.extend(res)
-        st.success("¡Listo!")
+        st.success("¡Proceso terminado!")
 
-    # Lógica de descarga (ZIP)...
-    if 'processed_results' in st.session_state and st.session_state.processed_results:
+    if st.session_state.processed_results:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zf:
             for r in st.session_state.processed_results:
                 zf.writestr(r['name'], r['data'])
-        st.download_button("Descargar ZIP", zip_buffer.getvalue(), "resultado.zip")
+        st.download_button("⬇️ Descargar Todo (ZIP)", zip_buffer.getvalue(), "imagenes_exactas.zip")
 
 if __name__ == "__main__":
     main()
