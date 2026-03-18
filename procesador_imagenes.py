@@ -79,7 +79,7 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
 # --- INTERFAZ (Sin cambios mayores, solo mantenemos la estructura) ---
 def main():
     st.set_page_config(page_title="Procesador Tamaño Exacto", layout="centered")
-    st.title("📏 Tamaño Exacto sin Deformar")
+    st.title("✏️✂️📚📌 EDITOR DE IMAGENES ✏️✂️📚📌")
     st.write("Tus imágenes serán exactamente del tamaño que pidas, centrando el producto.")
 
     with st.sidebar:
@@ -108,7 +108,7 @@ def main():
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zf:
             for r in st.session_state.processed_results:
                 zf.writestr(r['name'], r['data'])
-        st.download_button("⬇️ Descargar Todo (ZIP)", zip_buffer.getvalue(), "imagenes_exactas.zip")
+        st.download_button("⬇️ Descargar ZIP", zip_buffer.getvalue(), "imagenes_exactas.zip")
 
 if __name__ == "__main__":
     main()
