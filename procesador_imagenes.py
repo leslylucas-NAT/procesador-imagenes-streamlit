@@ -79,7 +79,7 @@ def procesar_imagen_completo(image_data: bytes, original_filename: str,
 # --- INTERFAZ (Sin cambios mayores, solo mantenemos la estructura) ---
 def main():
     st.set_page_config(page_title="Procesador Tamaño Exacto", layout="centered")
-    st.title("✂️📚📌 EDITOR DE IMAGENES ✂️📚📌")
+    st.title("✂️📚 EDITOR DE IMAGENES ✂️📚")
     st.write("Tus imágenes serán exactamente del tamaño que pidas, centrando el producto.")
 
     with st.sidebar:
